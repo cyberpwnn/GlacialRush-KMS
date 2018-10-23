@@ -1,228 +1,224 @@
 package com.volmit.grush.character;
 
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.bukkit.event.HandlerList;
+
+import com.volmit.fulcrum.bukkit.A;
+import com.volmit.fulcrum.bukkit.S;
 import com.volmit.fulcrum.bukkit.TICK;
+import com.volmit.grush.character.ability.AbilityCharge;
+import com.volmit.grush.character.ability.AbilityFireBall;
+import com.volmit.grush.character.ability.AbilityGroundPound;
+import com.volmit.grush.character.ability.AbilityHandler;
+import com.volmit.grush.character.ability.AbilityProtectiveBarrier;
+import com.volmit.grush.character.ability.AbilitySlot;
+import com.volmit.grush.health.HealthPool;
+import com.volmit.volume.bukkit.VolumePlugin;
+import com.volmit.volume.lang.json.JSONObject;
 
 public class BaseCharacter implements ICharacter
 {
-	private final FloatProperty health;
-	private final FloatProperty armor;
-	private final FloatProperty energy;
-	private final FloatProperty shield;
-	private final FloatProperty resistance;
-	private final FloatProperty damage;
-	private final FloatProperty visibility;
-	private final FloatProperty speed;
-	private final Property<Long> lastDamage;
-	private final Property<Long> lastEnergyUse;
-	private final Property<Integer> healthDelay;
-	private final Property<Integer> shieldDelay;
-	private final Property<Integer> energyDelay;
-	private final Property<Float> healthRegen;
-	private final Property<Float> shieldRegen;
-	private final Property<Float> energyRegen;
+	private Player p;
+	private String type;
+	private HealthPool pool;
+	private AbilityHandler abilityHandler;
+	private float energy;
+	private float aEnergy;
+	private float maxEnergy;
+	private long last;
+	private int u;
 
-	public BaseCharacter()
+	public BaseCharacter(Player p, JSONObject j)
 	{
-		//@builder
-		healthDelay = new Property<Integer>(250);
-		shieldDelay = new Property<Integer>(100);
-		energyDelay = new Property<Integer>(65);
-		healthRegen = new Property<Float>(0.25f);
-		shieldRegen = new Property<Float>(2.5f);
-		energyRegen = new Property<Float>(3.25f);
+		this(p, "<loading>");
+		fromJSON(j);
+		u = 0;
+	}
 
-		health = new FloatProperty(1000f)
-				.setMax(1000f)
-				.setMin(0f)
-				.onMin(() -> healthColapsed())
-				.onMax(() -> healthFull())
-				.onTake(() -> lastDamage().setCurrent(TICK.tick));
-		armor = new FloatProperty(0f)
-				.setMin(0f)
-				.onMin(() -> armorColapsed())
-				.onTake(() -> lastDamage().setCurrent(TICK.tick));
-		shield = new FloatProperty(0f)
-				.setMin(0f)
-				.setMax(0f)
-				.onMin(() -> shieldColapsed())
-				.onMax(() -> shieldFull())
-				.onTake(() -> lastDamage().setCurrent(TICK.tick));
-		energy = new FloatProperty(1000f)
-				.setMin(0f)
-				.setMax(0f)
-				.onMin(() -> energyDepleted())
-				.onMax(() -> energyFull())
-				.onTake(() -> lastEnergyUse().setCurrent(TICK.tick));
-		resistance = new FloatProperty(1f)
-				.setMin(0f)
-				.setMax(2f);
-		damage = new FloatProperty(1f)
-				.setMin(0f)
-				.setMax(2f);
-		speed = new FloatProperty(1f)
-				.setMin(0f)
-				.setMax(3f);
-		visibility = new FloatProperty(1f)
-				.setMin(0f)
-				.setMax(5f);
-		lastDamage = new Property<Long>(TICK.tick);
-		lastEnergyUse = new Property<Long>(TICK.tick);
-		//@done
+	public BaseCharacter(Player p, String type)
+	{
+		pool = new HealthPool();
+		this.type = type;
+		this.p = p;
+		maxEnergy = 900f;
+		energy = 900f;
+		last = TICK.tick;
 	}
 
 	@Override
-	public void tick()
+	public void destroy()
 	{
-		if(TICK.tick - lastDamage().getCurrent() > shieldDelay().getCurrent())
-		{
-			shield().add(shieldRegen().getCurrent() / 20f, 20);
-		}
+		HandlerList.unregisterAll(abilityHandler);
+	}
 
-		if(TICK.tick - lastDamage().getCurrent() > healthDelay().getCurrent())
-		{
-			health().add(healthRegen().getCurrent() / 20f, 20);
-		}
+	@Override
+	public void tick(long delta)
+	{
+		tickEnergy();
+		pool.setP(getPlayer());
+		pool.tick(delta);
 
-		if(TICK.tick - lastEnergyUse().getCurrent() > energyDelay().getCurrent())
+		if(abilityHandler == null)
 		{
-			energy().add(energyRegen().getCurrent() / 20f, 20);
+			new S()
+			{
+				@Override
+				public void run()
+				{
+					abilityHandler = new AbilityHandler(BaseCharacter.this);
+					Bukkit.getPluginManager().registerEvents(abilityHandler, VolumePlugin.vpi);
+
+					new A()
+					{
+						@Override
+						public void run()
+						{
+							initAbilities();
+						}
+					};
+				}
+			};
 		}
 	}
 
-	@Override
-	public int getTickRate()
+	private void initAbilities()
 	{
-		return 0;
+		abilityHandler.getAbilities().clear();
+
+		if(getCharacterType().contains("mage"))
+		{
+			abilityHandler.getAbilities().put(AbilitySlot.F, new AbilityFireBall());
+		}
+
+		else if(getCharacterType().contains("tank"))
+		{
+			abilityHandler.getAbilities().put(AbilitySlot.F, new AbilityProtectiveBarrier());
+		}
+
+		else if(getCharacterType().contains("gladiator"))
+		{
+			abilityHandler.getAbilities().put(AbilitySlot.F, new AbilityCharge());
+		}
+
+		else if(getCharacterType().contains("brute"))
+		{
+			abilityHandler.getAbilities().put(AbilitySlot.DOUBLE_JUMP, new AbilityGroundPound());
+		}
 	}
 
 	@Override
-	public FloatProperty armor()
+	public JSONObject toJSON()
 	{
-		return armor;
+		JSONObject j = new JSONObject();
+		toJSON(j);
+		return j;
 	}
 
 	@Override
-	public Property<Long> lastDamage()
+	public void toJSON(JSONObject j)
 	{
-		return lastDamage;
+		j.put("health-pool", getHealthPool().toJSON());
+		j.put("type", getCharacterType());
 	}
 
 	@Override
-	public Property<Long> lastEnergyUse()
+	public void fromJSON(JSONObject j)
 	{
-		return lastEnergyUse;
+		pool = new HealthPool(j.getJSONObject("health-pool"));
+		type = j.getString("type");
 	}
 
 	@Override
-	public FloatProperty health()
+	public Player getPlayer()
 	{
-		return health;
+		return p;
 	}
 
 	@Override
-	public FloatProperty energy()
+	public HealthPool getHealthPool()
+	{
+		return pool;
+	}
+
+	@Override
+	public String getCharacterType()
+	{
+		return type;
+	}
+
+	@Override
+	public float getEnergy()
 	{
 		return energy;
 	}
 
 	@Override
-	public FloatProperty shield()
+	public void setEnergy(float e)
 	{
-		return shield;
+		energy = e;
+
+		if(energy > maxEnergy)
+		{
+			energy = maxEnergy;
+		}
 	}
 
 	@Override
-	public FloatProperty resistance()
+	public boolean useEnergy(float energy)
 	{
-		return resistance;
+		if(getEnergy() > energy)
+		{
+			setEnergy(getEnergy() - energy);
+			u = 10;
+			last = TICK.tick;
+			return true;
+		}
+
+		return false;
 	}
 
 	@Override
-	public FloatProperty damage()
+	public void tickEnergy()
 	{
-		return damage;
-	}
+		if(u > 0)
+		{
+			u--;
+		}
 
-	@Override
-	public FloatProperty visibility()
-	{
-		return visibility;
-	}
+		if(TICK.tick - last > 50 && TICK.tick % 15 == 0)
+		{
+			setEnergy(getEnergy() + 50);
+		}
 
-	@Override
-	public FloatProperty speed()
-	{
-		return speed;
-	}
+		if(aEnergy > energy)
+		{
+			aEnergy -= (aEnergy - energy) / 6f;
+		}
 
-	@Override
-	public Property<Integer> healthDelay()
-	{
-		return healthDelay;
-	}
+		if(aEnergy < energy)
+		{
+			aEnergy += (energy - aEnergy) / 6f;
+		}
 
-	@Override
-	public Property<Integer> shieldDelay()
-	{
-		return shieldDelay;
-	}
+		if(u > 0)
+		{
+			u--;
 
-	@Override
-	public Property<Float> healthRegen()
-	{
-		return healthRegen;
-	}
+			if(TICK.tick % 2 == 0)
+			{
+				getPlayer().setExp(0f);
+			}
 
-	@Override
-	public Property<Float> shieldRegen()
-	{
-		return shieldRegen;
-	}
+			else
+			{
+				getPlayer().setExp(aEnergy / maxEnergy);
+			}
+		}
 
-	@Override
-	public Property<Integer> energyDelay()
-	{
-		return energyDelay;
-	}
-
-	@Override
-	public Property<Float> energyRegen()
-	{
-		return energyRegen;
-	}
-
-	protected void healthFull()
-	{
-
-	}
-
-	protected void shieldFull()
-	{
-
-	}
-
-	protected void energyFull()
-	{
-
-	}
-
-	protected void energyDepleted()
-	{
-
-	}
-
-	protected void shieldColapsed()
-	{
-
-	}
-
-	protected void armorColapsed()
-	{
-
-	}
-
-	protected void healthColapsed()
-	{
-
+		else
+		{
+			getPlayer().setExp(aEnergy / maxEnergy);
+		}
 	}
 }

@@ -1,39 +1,26 @@
 package com.volmit.grush.character;
 
-import com.volmit.grush.Ticked;
-import com.volmit.volume.bukkit.pawn.IPawn;
+import org.bukkit.entity.Player;
 
-public interface ICharacter extends IPawn, Ticked
+import com.volmit.grush.health.HealthPool;
+import com.volmit.grush.sched.Ticked;
+import com.volmit.grush.util.Writable;
+
+public interface ICharacter extends Ticked, Writable
 {
-	public Property<Long> lastDamage();
+	public Player getPlayer();
 
-	public Property<Long> lastEnergyUse();
+	public float getEnergy();
 
-	public Property<Integer> healthDelay();
+	public void setEnergy(float energy);
 
-	public Property<Integer> shieldDelay();
+	public boolean useEnergy(float energy);
 
-	public Property<Integer> energyDelay();
+	public void destroy();
 
-	public Property<Float> healthRegen();
+	public HealthPool getHealthPool();
 
-	public Property<Float> shieldRegen();
+	public String getCharacterType();
 
-	public Property<Float> energyRegen();
-
-	public FloatProperty health();
-
-	public FloatProperty armor();
-
-	public FloatProperty energy();
-
-	public FloatProperty shield();
-
-	public FloatProperty resistance();
-
-	public FloatProperty damage();
-
-	public FloatProperty visibility();
-
-	public FloatProperty speed();
+	public void tickEnergy();
 }

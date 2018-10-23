@@ -22,6 +22,14 @@
 					<include>**/*.txt</include>
 				</includes>
 			</resource>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>false</filtering>
+				<includes>
+					<include>**/*.ogg</include>
+					<include>**/*.png</include>
+				</includes>
+			</resource>
 		</resources>
 		<plugins>
 			<plugin>
@@ -36,6 +44,8 @@
 						</goals>
 					</execution>
 				</executions>
+				<configuration>
+				</configuration>
 			</plugin>
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
